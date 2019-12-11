@@ -180,4 +180,4 @@ class PlumcotClosestAssignment(Pipeline):
             # do not assign
             target = -1
 
-        return target
+        return target,distances[target]
