@@ -88,13 +88,13 @@ class ClosestAssignment(Pipeline):
 
         distance = cdist(X_target, X, metric=self.metric)
         targets = np.argmin(distance, axis=0)
-
+        min_distances = np.min(distance, axis=0)
         for i, k in enumerate(targets):
             if distance[k, i] > self.threshold:
                 # do not assign
                 targets[i] = -i
 
-        return targets
+        return targets, min_distances
 
 class PlumcotClosestAssignment(Pipeline):
     """Assign each sample to the closest target
