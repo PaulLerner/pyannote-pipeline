@@ -147,6 +147,7 @@ class PlumcotClosestAssignment(Pipeline):
                 - 'mean' (Default)
                 - 'median'
                 - 'min'
+                - 'max'
 
         Returns
         -------
@@ -171,6 +172,8 @@ class PlumcotClosestAssignment(Pipeline):
                 distance=np.median(distance)
             elif method=='min':
                 distance=np.min(distance)
+            elif method=='max':
+                distance=np.max(distance)
             else:
                 raise ValueError(f"{method} is an invalid value for method, see \n{help(self)}")
             distances.append(distance)
