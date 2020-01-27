@@ -104,6 +104,13 @@ class HierarchicalAgglomerativeClustering(Pipeline):
         y : `np.ndarray`
             (n_samples, ) cluster assignment (between 1 and n_clusters).
         """
+        n_samples, _ = X.shape
+
+        if n_samples < 1:
+            raise ValueError(f"There should be at least one sample in `X`, got {n_samples}")
+        elif n_samples==1:
+            #no clustering to be done on one feature
+            return np.array([1], dtype=int)
 
         if self.normalize:
             X = l2_normalize(X)
