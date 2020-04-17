@@ -70,7 +70,7 @@ class ClosestAssignment(Pipeline):
             warnings.warn(msg)
         self.threshold = Uniform(min_dist, max_dist)
 
-    def __call__(self, X_target, X):
+    def __call__(self, X_target, X, use_threshold = True):
         """Assign each sample to its closest class (if close enough)
 
         Parameters
@@ -79,6 +79,10 @@ class ClosestAssignment(Pipeline):
             (n_targets, n_dimensions) target embeddings
         X : `np.ndarray`
             (n_samples, n_dimensions) sample embeddings
+        use_threshold : `bool`, optional
+            Ignores `self.threshold` if False
+            -> sample embeddings are assigned to the closest target no matter the distance
+            Defautls to True.
 
         Returns
         -------
@@ -93,8 +97,12 @@ class ClosestAssignment(Pipeline):
         distance = cdist(X_target, X, metric=self.metric)
         targets = np.argmin(distance, axis=0)
 
+        if not use_threshold:
+            return targets
+            
         for i, k in enumerate(targets):
             if distance[k, i] > self.threshold:
+                #FIX here add use_threshold
                 # do not assign
                 targets[i] = -i
 
