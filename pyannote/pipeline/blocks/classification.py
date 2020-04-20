@@ -99,10 +99,9 @@ class ClosestAssignment(Pipeline):
 
         if not use_threshold:
             return targets
-            
+        # else assign a negative label
         for i, k in enumerate(targets):
             if distance[k, i] > self.threshold:
-                #FIX here add use_threshold
                 # do not assign
                 targets[i] = -i
 
