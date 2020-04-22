@@ -25,13 +25,15 @@
 
 # AUTHORS
 # Hervé BREDIN - http://herve.niderb.fr
+# Paul LERNER
 
 import warnings
 import numpy as np
 from typing import Optional
+from sklearn.neighbors import NearestNeighbors
 
 from ..pipeline import Pipeline
-from ..parameter import Uniform
+from ..parameter import Uniform, Integer
 from pyannote.core.utils.distance import cdist
 from pyannote.core.utils.distance import dist_range
 from pyannote.core.utils.distance import l2_normalize
@@ -82,7 +84,7 @@ class ClosestAssignment(Pipeline):
         use_threshold : `bool`, optional
             Ignores `self.threshold` if False
             -> sample embeddings are assigned to the closest target no matter the distance
-            Defautls to True.
+            Defaults to True.
 
         Returns
         -------
@@ -106,3 +108,80 @@ class ClosestAssignment(Pipeline):
                 targets[i] = -i
 
         return targets
+
+class KNN(ClosestAssignment):
+    """Assigns each sample to it's nearest neighbor (if close enough).
+
+    Note: with k = 1, should be equivalent to ClosestAssignment
+
+    Parameters
+    ----------
+    metric : `str`, optional
+        Distance metric. Defaults to 'cosine'
+    normalize : `bool`, optional
+        L2 normalize vectors before clustering.
+
+    Hyper-parameters
+    ----------------
+    k : `int`
+        Number of neighbors to get.
+        see sklearn.neighbors.NearestNeighbors
+    threshold : `float`
+        Do not assign if distance greater than `threshold`.
+        See ClosestAssignment
+    """
+    def __init__(self, metric: Optional[str] = 'cosine',
+                       normalize: Optional[bool] = False):
+
+    super().__init__(metric, normalize)
+
+    #FIXME : how to init k ??
+    self.k = Integer(1, 100)
+
+    def __call__(self, X_target, X, labels, use_threshold = True):
+        """Assigns each sample to it's nearest neighbor.
+
+        Parameters
+        ----------
+        X_target : `np.ndarray`
+            (n_targets, n_dimensions) target embeddings
+        X : `np.ndarray`
+            (n_samples, n_dimensions) sample embeddings
+        labels : `list`
+            target labels, used to group neighbors by label
+        use_threshold : `bool`, optional
+            Ignores `self.threshold` if False
+            -> sample embeddings are assigned to the nearest neighbor no matter the distance
+            Defaults to True.
+
+        Returns
+        -------
+        assignments : `list`
+            (n_samples, ) sample assignments
+        """
+        labels = np.array(labels)
+        assignments = []
+
+        #k must be <= n_samples
+        self.k = np.maximum(self.k, X.shape[0])
+        #FIXME should we declare neighbors in __init__ ?
+        neighbors = NearestNeighbors(n_neighbors = self.k, metric=self.metric)
+
+        if self.normalize:
+            X_target = l2_normalize(X_target)
+            X = l2_normalize(X)
+
+        neighbors.fit(X_target)
+        kdistance, kneighbors = neighbors.kneighbors(X, self.k, return_distance = True)
+        for i, (distance, indices) in enumerate(zip(kdistance, kneighbors)):
+            neighborhood = labels[indices]
+            unique, counts = np.unique(neighborhood,return_counts=True)
+            nearest_neighbor = unique[np.argmax(counts)]
+            j = np.where(neighborhood==nearest_neighbor)[0]
+            nearest_distance = np.mean(distance[j])
+            if nearest_distance > self.threshold and use_threshold:
+                assignments.append(i)
+            else:
+                assignments.append(nearest_neighbor)
+
+        return assignments
