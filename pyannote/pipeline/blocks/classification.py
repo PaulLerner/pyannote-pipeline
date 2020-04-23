@@ -133,10 +133,10 @@ class KNN(ClosestAssignment):
     def __init__(self, metric: Optional[str] = 'cosine',
                        normalize: Optional[bool] = False):
 
-    super().__init__(metric, normalize)
+        super().__init__(metric, normalize)
 
-    #FIXME : how to init k ??
-    self.k = Integer(1, 100)
+        #FIXME : how to init k ??
+        self.k = Integer(1, 100)
 
     def __call__(self, X_target, X, labels, use_threshold = True):
         """Assigns each sample to it's nearest neighbor.
@@ -173,14 +173,15 @@ class KNN(ClosestAssignment):
 
         neighbors.fit(X_target)
         kdistance, kneighbors = neighbors.kneighbors(X, self.k, return_distance = True)
-        for i, (distance, indices) in enumerate(zip(kdistance, kneighbors)):
+        for i, (distance, indices) in enumerate(zip(kdistance, kneighbors), start=1):
             neighborhood = labels[indices]
             unique, counts = np.unique(neighborhood,return_counts=True)
             nearest_neighbor = unique[np.argmax(counts)]
             j = np.where(neighborhood==nearest_neighbor)[0]
             nearest_distance = np.mean(distance[j])
             if nearest_distance > self.threshold and use_threshold:
-                assignments.append(i)
+                #give a negative label to samples far from their neighbors
+                assignments.append(-i)
             else:
                 assignments.append(nearest_neighbor)
 
