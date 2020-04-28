@@ -31,6 +31,7 @@ import warnings
 import numpy as np
 from typing import Optional
 from sklearn.neighbors import NearestNeighbors
+from collections import Counter
 
 from ..pipeline import Pipeline
 from ..parameter import Uniform, Integer
@@ -138,7 +139,8 @@ class KNN(ClosestAssignment):
         #FIXME : how to init k ??
         self.k = Integer(1, 100)
 
-    def __call__(self, X_target, X, labels, use_threshold = True):
+    def __call__(self, X_target, X, labels, use_threshold = True, weights = {},
+                 must_link = None, cannot_link = None):
         """Assigns each sample to it's nearest neighbor.
 
         Parameters
@@ -148,11 +150,20 @@ class KNN(ClosestAssignment):
         X : `np.ndarray`
             (n_samples, n_dimensions) sample embeddings
         labels : `list`
-            target labels, used to group neighbors by label
+            (n_targets, ) target labels, used to group neighbors by label
         use_threshold : `bool`, optional
             Ignores `self.threshold` if False
             -> sample embeddings are assigned to the nearest neighbor no matter the distance
             Defaults to True.
+        weights : `dict`
+            {label : weight} dict used to weigh the labels before assignment
+            Defaults to no weighing (i.e. {label: 1})
+        must_link : `list`, optional
+            (n_samples, ) used to constrain the assignment
+            Defaults to no constraints (i.e. None)
+        cannot_link : `list`, optional
+            (n_samples, ) used to constrain the assignment
+            Defaults to no constraints (i.e. None)
 
         Returns
         -------
@@ -162,8 +173,8 @@ class KNN(ClosestAssignment):
         labels = np.array(labels)
         assignments = []
 
-        #k must be <= n_samples
-        self.k = np.maximum(self.k, X.shape[0])
+        # k must be <= n_targets
+        self.k = np.maximum(self.k, X_target.shape[0])
         #FIXME should we declare neighbors in __init__ ?
         neighbors = NearestNeighbors(n_neighbors = self.k, metric=self.metric)
 
@@ -173,15 +184,29 @@ class KNN(ClosestAssignment):
 
         neighbors.fit(X_target)
         kdistance, kneighbors = neighbors.kneighbors(X, self.k, return_distance = True)
-        for i, (distance, indices) in enumerate(zip(kdistance, kneighbors), start=1):
+        for i, (distance, indices) in enumerate(zip(kdistance, kneighbors), start=0):
+            if must_link is not None and must_link[i]:
+                # trust must_link blindly
+                assignments.append(must_link[i])
+                continue
             neighborhood = labels[indices]
-            unique, counts = np.unique(neighborhood,return_counts=True)
-            nearest_neighbor = unique[np.argmax(counts)]
+            # count neighbors
+            scores = Counter(neighborhood)
+            for label in scores:
+                # weigh  neighbors
+                scores[label]*=weights.get(label,1)
+                # constrain neighbors
+                if cannot_link is None:
+                    continue
+                for cl in cannot_link[i]:
+                    scores[cl] = 0
+            nearest_neighbor, score = scores.most_common(1)[0]
+
             j = np.where(neighborhood==nearest_neighbor)[0]
             nearest_distance = np.mean(distance[j])
             if nearest_distance > self.threshold and use_threshold:
-                #give a negative label to samples far from their neighbors
-                assignments.append(-i)
+                # give a negative label to samples far from their neighbors
+                assignments.append(-i-1)
             else:
                 assignments.append(nearest_neighbor)
 
