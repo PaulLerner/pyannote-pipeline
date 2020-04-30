@@ -25,13 +25,16 @@
 
 # AUTHORS
 # Hervé BREDIN - http://herve.niderb.fr
+# Paul LERNER
 
 import warnings
 import numpy as np
 from typing import Optional
+from sklearn.neighbors import NearestNeighbors
+from collections import Counter
 
 from ..pipeline import Pipeline
-from ..parameter import Uniform
+from ..parameter import Uniform, Integer
 from pyannote.core.utils.distance import cdist
 from pyannote.core.utils.distance import dist_range
 from pyannote.core.utils.distance import l2_normalize
@@ -70,7 +73,7 @@ class ClosestAssignment(Pipeline):
             warnings.warn(msg)
         self.threshold = Uniform(min_dist, max_dist)
 
-    def __call__(self, X_target, X):
+    def __call__(self, X_target, X, use_threshold = True):
         """Assign each sample to its closest class (if close enough)
 
         Parameters
@@ -79,6 +82,10 @@ class ClosestAssignment(Pipeline):
             (n_targets, n_dimensions) target embeddings
         X : `np.ndarray`
             (n_samples, n_dimensions) sample embeddings
+        use_threshold : `bool`, optional
+            Ignores `self.threshold` if False
+            -> sample embeddings are assigned to the closest target no matter the distance
+            Defaults to True.
 
         Returns
         -------
@@ -93,9 +100,114 @@ class ClosestAssignment(Pipeline):
         distance = cdist(X_target, X, metric=self.metric)
         targets = np.argmin(distance, axis=0)
 
+        if not use_threshold:
+            return targets
+        # else assign a negative label
         for i, k in enumerate(targets):
             if distance[k, i] > self.threshold:
                 # do not assign
                 targets[i] = -i
 
         return targets
+
+class KNN(ClosestAssignment):
+    """Assigns each sample to it's nearest neighbor (if close enough).
+
+    Note: with k = 1, should be equivalent to ClosestAssignment
+
+    Parameters
+    ----------
+    metric : `str`, optional
+        Distance metric. Defaults to 'cosine'
+    normalize : `bool`, optional
+        L2 normalize vectors before clustering.
+
+    Hyper-parameters
+    ----------------
+    k : `int`
+        Number of neighbors to get.
+        see sklearn.neighbors.NearestNeighbors
+    threshold : `float`
+        Do not assign if distance greater than `threshold`.
+        See ClosestAssignment
+    """
+    def __init__(self, metric: Optional[str] = 'cosine',
+                       normalize: Optional[bool] = False):
+
+        super().__init__(metric, normalize)
+
+        #FIXME : how to init k ??
+        self.k = Integer(1, 100)
+
+    def __call__(self, X_target, X, labels, use_threshold = True, weights = {},
+                 must_link = None, cannot_link = None):
+        """Assigns each sample to it's nearest neighbor.
+
+        Parameters
+        ----------
+        X_target : `np.ndarray`
+            (n_targets, n_dimensions) target embeddings
+        X : `np.ndarray`
+            (n_samples, n_dimensions) sample embeddings
+        labels : `list`
+            (n_targets, ) target labels, used to group neighbors by label
+        use_threshold : `bool`, optional
+            Ignores `self.threshold` if False
+            -> sample embeddings are assigned to the nearest neighbor no matter the distance
+            Defaults to True.
+        weights : `dict`
+            {label : weight} dict used to weigh the labels before assignment
+            Defaults to no weighing (i.e. {label: 1})
+        must_link : `list`, optional
+            (n_samples, ) used to constrain the assignment
+            Defaults to no constraints (i.e. None)
+        cannot_link : `list`, optional
+            (n_samples, ) used to constrain the assignment
+            Defaults to no constraints (i.e. None)
+
+        Returns
+        -------
+        assignments : `list`
+            (n_samples, ) sample assignments
+        """
+        labels = np.array(labels)
+        assignments = []
+
+        # k must be <= n_targets
+        self.k = np.maximum(self.k, X_target.shape[0])
+        #FIXME should we declare neighbors in __init__ ?
+        neighbors = NearestNeighbors(n_neighbors = self.k, metric=self.metric)
+
+        if self.normalize:
+            X_target = l2_normalize(X_target)
+            X = l2_normalize(X)
+
+        neighbors.fit(X_target)
+        kdistance, kneighbors = neighbors.kneighbors(X, self.k, return_distance = True)
+        for i, (distance, indices) in enumerate(zip(kdistance, kneighbors), start=0):
+            if must_link is not None and must_link[i]:
+                # trust must_link blindly
+                assignments.append(must_link[i])
+                continue
+            neighborhood = labels[indices]
+            # count neighbors
+            scores = Counter(neighborhood)
+            for label in scores:
+                # weigh  neighbors
+                scores[label]*=weights.get(label,1)
+                # constrain neighbors
+                if cannot_link is None:
+                    continue
+                for cl in cannot_link[i]:
+                    scores[cl] = 0
+            nearest_neighbor, score = scores.most_common(1)[0]
+
+            j = np.where(neighborhood==nearest_neighbor)[0]
+            nearest_distance = np.mean(distance[j])
+            if nearest_distance > self.threshold and use_threshold:
+                # give a negative label to samples far from their neighbors
+                assignments.append(-i-1)
+            else:
+                assignments.append(nearest_neighbor)
+
+        return assignments
