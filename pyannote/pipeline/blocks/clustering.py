@@ -91,7 +91,8 @@ class HierarchicalAgglomerativeClustering(Pipeline):
             self.threshold = Uniform(min_dist, max_dist)
 
 
-    def __call__(self, X: np.ndarray, cannot_link: List[Tuple[int, int]] = None) -> np.ndarray:
+    def __call__(self, X: np.ndarray, cannot_link: List[Tuple[int, int]] = None) -> \
+            Tuple[np.ndarray, Tuple[int, int]]:
         """Apply hierarchical agglomerative clustering
 
         Parameters
@@ -107,6 +108,8 @@ class HierarchicalAgglomerativeClustering(Pipeline):
         -------
         y : `np.ndarray`
             (n_samples, ) cluster assignment (between 1 and n_clusters).
+        (i, j): tuple of int
+            indexes of representative embeddings of two clusters we'd like some feedback on
         """
 
         n_samples, _ = X.shape
@@ -117,19 +120,19 @@ class HierarchicalAgglomerativeClustering(Pipeline):
         
         elif n_samples == 1:
             # clustering of just one element
-            return np.array([1], dtype=int)
+            return np.array([1], dtype=int), (None, None)
 
         if self.normalize:
             X = l2_normalize(X)
 
         # compute agglomerative clustering all the way up to one cluster
-        Z = linkage(X, method=self.method, metric=self.metric, cannot_link=cannot_link)
+        Z, (i, j) = linkage(X, method=self.method, metric=self.metric, cannot_link=cannot_link)
 
         # obtain flat clusters
         if self.use_threshold:
-            return fcluster(Z, self.threshold, criterion='distance')
+            return fcluster(Z, self.threshold, criterion='distance'), (i, j)
 
-        return fcluster_auto(X, Z, metric=self.metric)
+        return fcluster_auto(X, Z, metric=self.metric), (i, j)
 
 
 class AffinityPropagationClustering(Pipeline):
@@ -162,7 +165,8 @@ class AffinityPropagationClustering(Pipeline):
             damping=self.damping, preference=self.preference,
             affinity='precomputed', max_iter=200, convergence_iter=50)
 
-    def __call__(self, X: np.ndarray, cannot_link: List[Tuple[int, int]] = None) -> np.ndarray:
+    def __call__(self, X: np.ndarray, cannot_link: List[Tuple[int, int]] = None) -> \
+            Tuple[np.ndarray, Tuple[int, int]]:
         """Apply clustering based on affinity propagation
 
         Parameters
@@ -177,6 +181,8 @@ class AffinityPropagationClustering(Pipeline):
         -------
         y : `np.ndarray`
             (n_samples, ) cluster assignment (between 1 and n_clusters).
+        (None, None):
+            keep a function signature consistent with HierarchicalAgglomerativeClustering
         """
         if cannot_link is not None:
             msg = (f'cannot_link constraints are not implemented for '
@@ -190,7 +196,7 @@ class AffinityPropagationClustering(Pipeline):
         
         elif n_samples == 1:
             # clustering of just one element
-            return np.array([1], dtype=int)
+            return np.array([1], dtype=int), (None, None)
 
         try:
             affinity = -squareform(pdist(X, metric=self.metric))
@@ -202,4 +208,4 @@ class AffinityPropagationClustering(Pipeline):
             clusters = np.arange(n_samples)
         clusters += 1
 
-        return clusters
+        return clusters, (None, None)
