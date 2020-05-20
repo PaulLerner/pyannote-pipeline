@@ -126,13 +126,69 @@ class HierarchicalAgglomerativeClustering(Pipeline):
             X = l2_normalize(X)
 
         # compute agglomerative clustering all the way up to one cluster
-        Z, (i, j) = linkage(X, method=self.method, metric=self.metric, cannot_link=cannot_link)
+        Z = linkage(X, method=self.method, metric=self.metric, cannot_link=cannot_link)
+
+        # find two clusters we're unsure about ("should they be merged ?")
+        i1, i2 = None, None
+        for i in range(len(Z) - 1, 0, -1):
+            distance = Z[i, 2]
+            if distance == np.infty:
+                continue
+            elif self.use_threshold:
+                # query clusters close to self.threshold
+                # -> until we're just above dendrogram cutoff
+                if Z[i - 1, 2] > self.threshold:
+                    continue
+
+            # find clusters k1 and k2 that were merged at iteration i
+            current = fcluster(Z, Z[i, 2], criterion="distance")
+            previous = fcluster(Z, Z[i - 1, 2], criterion="distance")
+            n_current, n_previous = max(current), max(previous)
+
+            # TODO handle these corner cases better
+            if n_current >= n_previous or n_previous - n_current > 1:
+                continue
+            C = np.zeros((n_current, n_previous))
+            for k_current, k_previous in zip(current, previous):
+                C[k_current - 1, k_previous - 1] += 1
+            k1, k2 = (
+                    np.where(C[int(np.where(np.sum(C > 0, axis=1) == 2)[0])] > 0)[0]
+                    + 1
+            )
+
+            # find centroids of clusters k1 and k2
+            indices1 = np.where(previous == k1)[0]
+            i1 = indices1[
+                np.argmin(
+                    np.mean(
+                        squareform(pdist(X[indices1], metric="cosine")),
+                        axis=1,
+                    )
+                )
+            ]
+            indices2 = np.where(previous == k2)[0]
+            i2 = indices2[
+                np.argmin(
+                    np.mean(
+                        squareform(pdist(X[indices2], metric="cosine")),
+                        axis=1,
+                    )
+                )
+            ]
+
+            # did the human in the loop already provide feedback on this pair of segments?
+            pair = tuple(sorted([i1, i2]))
+            # do not annotate the same pair twice
+            if cannot_link and pair in cannot_link:
+                continue
+            # else return (i1, i2)
+            break
 
         # obtain flat clusters
         if self.use_threshold:
-            return fcluster(Z, self.threshold, criterion='distance'), (i, j)
+            return fcluster(Z, self.threshold, criterion='distance'), (i1, i2)
 
-        return fcluster_auto(X, Z, metric=self.metric), (i, j)
+        return fcluster_auto(X, Z, metric=self.metric), (i1, i2)
 
 
 class AffinityPropagationClustering(Pipeline):
