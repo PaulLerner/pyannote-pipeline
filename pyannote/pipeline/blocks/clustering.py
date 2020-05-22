@@ -141,8 +141,7 @@ class HierarchicalAgglomerativeClustering(Pipeline):
                 continue
             elif self.use_threshold:
                 # query clusters close to self.threshold
-                # -> until we're just above dendrogram cutoff
-                if Z[i - 1, 2] > self.threshold:
+                if abs(self.threshold - distance) > abs(self.threshold - Z[i-1, 2]):
                     continue
 
             # find clusters k1 and k2 that were merged at iteration i
