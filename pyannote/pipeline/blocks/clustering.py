@@ -91,18 +91,22 @@ class HierarchicalAgglomerativeClustering(Pipeline):
             self.threshold = Uniform(min_dist, max_dist)
 
 
-    def __call__(self, X: np.ndarray, cannot_link: List[Tuple[int, int]] = None) -> \
-            Tuple[np.ndarray, Tuple[int, int]]:
+    def __call__(self,
+                 X: np.ndarray,
+                 cannot_link: List[Tuple[int, int]] = None,
+                 must_link: List[Tuple[int, int]] = None) -> \
+        Tuple[np.ndarray, Tuple[int, int]]:
         """Apply hierarchical agglomerative clustering
 
         Parameters
         ----------
         X : `np.ndarray`
             (n_samples, n_dimensions) feature vectors.
-        cannot_link : list of pairs
-            Pairs of indices of observations that cannot be linked. For instance,
-            [(1, 2), (5, 6)] means that first and second observations cannot end up
-            in the same cluster, as well as 5th and 6th obversations.
+        cannot_link, must_link : list of pairs
+            Pairs of indices of observations that cannot be (resp. must be) linked.
+            For instance, [(1, 2), (5, 6)] means that first and second observations
+            cannot end up (resp. must end up) in the same cluster,
+            as well as 5th and 6th observations.
             Defaults to no constraints (i.e. None)
         Returns
         -------
@@ -126,7 +130,8 @@ class HierarchicalAgglomerativeClustering(Pipeline):
             X = l2_normalize(X)
 
         # compute agglomerative clustering all the way up to one cluster
-        Z = linkage(X, method=self.method, metric=self.metric, cannot_link=cannot_link)
+        Z = linkage(X, method=self.method, metric=self.metric,
+                    cannot_link=cannot_link, must_link=must_link)
 
         # find two clusters we're unsure about ("should they be merged ?")
         i1, i2 = None, None
@@ -178,8 +183,7 @@ class HierarchicalAgglomerativeClustering(Pipeline):
 
             # did the human in the loop already provide feedback on this pair of segments?
             pair = tuple(sorted([i1, i2]))
-            # do not annotate the same pair twice
-            if cannot_link and pair in cannot_link:
+            if (cannot_link and pair in cannot_link) or (must_link and pair in must_link):
                 continue
             # else return (i1, i2)
             break
