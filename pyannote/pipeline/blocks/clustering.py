@@ -135,14 +135,15 @@ class HierarchicalAgglomerativeClustering(Pipeline):
 
         # find two clusters we're unsure about ("should they be merged ?")
         i1, i2 = None, None
-        for i in range(len(Z) - 1, 0, -1):
+        if self.use_threshold:
+            # query clusters close to self.threshold
+            indices = np.argsort(np.abs(Z[1:, 2] - self.threshold))
+        else:
+            indices = np.arange(len(Z) - 1, 0, -1)
+        for i in indices:
             distance = Z[i, 2]
             if distance == np.infty:
                 continue
-            elif self.use_threshold:
-                # query clusters close to self.threshold
-                if abs(self.threshold - distance) > abs(self.threshold - Z[i-1, 2]):
-                    continue
 
             # find clusters k1 and k2 that were merged at iteration i
             current = fcluster(Z, Z[i, 2], criterion="distance")
