@@ -190,9 +190,15 @@ class HierarchicalAgglomerativeClustering(Pipeline):
 
         # obtain flat clusters
         if self.use_threshold:
-            return fcluster(Z, self.threshold, criterion='distance'), (i1, i2)
+            clusters = fcluster(Z, self.threshold, criterion='distance')
+        else:
+            clusters = fcluster_auto(X, Z, metric=self.metric)
 
-        return fcluster_auto(X, Z, metric=self.metric), (i1, i2)
+        # apply must-link constraints
+        for u, v in must_link:
+            clusters[clusters == clusters[u]] = clusters[v]
+
+        return clusters, (i1, i2)
 
 
 class AffinityPropagationClustering(Pipeline):
