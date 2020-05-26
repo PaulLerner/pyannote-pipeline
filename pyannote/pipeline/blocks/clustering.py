@@ -137,7 +137,7 @@ class HierarchicalAgglomerativeClustering(Pipeline):
         i1, i2 = None, None
         if self.use_threshold:
             # query clusters close to self.threshold
-            indices = np.argsort(np.abs(Z[1:, 2] - self.threshold))
+            indices = np.argsort(np.abs(Z[1:, 2] - self.threshold)) + 1
         else:
             indices = np.arange(len(Z) - 1, 0, -1)
         for i in indices:
