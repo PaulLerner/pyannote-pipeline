@@ -130,8 +130,8 @@ class HierarchicalAgglomerativeClustering(Pipeline):
             X = l2_normalize(X)
 
         # compute agglomerative clustering all the way up to one cluster
-        Z = linkage(X, method=self.method, metric=self.metric,
-                    cannot_link=cannot_link, must_link=must_link)
+        Z = linkage(X, method=self.method, metric=self.metric, pooling_func='average',
+                    cannot_link=cannot_link, must_link=must_link, must_link_method='propagate')
 
         # find two clusters we're unsure about ("should they be merged ?")
         i1, i2 = None, None
