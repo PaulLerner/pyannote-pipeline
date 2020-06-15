@@ -57,7 +57,7 @@ class ClosestAssignment(Pipeline):
     """
 
     def __init__(self, metric: Optional[str] = 'cosine',
-                       normalize: Optional[bool] = False):
+                 normalize: Optional[bool] = False):
 
         super().__init__()
         self.metric = metric
@@ -73,7 +73,7 @@ class ClosestAssignment(Pipeline):
             warnings.warn(msg)
         self.threshold = Uniform(min_dist, max_dist)
 
-    def __call__(self, X_target, X, use_threshold = True):
+    def __call__(self, X_target, X, use_threshold=True):
         """Assign each sample to its closest class (if close enough)
 
         Parameters
@@ -110,6 +110,7 @@ class ClosestAssignment(Pipeline):
 
         return targets
 
+
 class KNN(ClosestAssignment):
     """Assigns each sample to it's nearest neighbor (if close enough).
 
@@ -131,16 +132,17 @@ class KNN(ClosestAssignment):
         Do not assign if distance greater than `threshold`.
         See ClosestAssignment
     """
+
     def __init__(self, metric: Optional[str] = 'cosine',
-                       normalize: Optional[bool] = False):
+                 normalize: Optional[bool] = False):
 
         super().__init__(metric, normalize)
 
-        #FIXME : how to init k ??
+        # FIXME : how to init k ??
         self.k = Integer(1, 100)
 
-    def __call__(self, X_target, X, labels, use_threshold = True, weights = {},
-                 must_link = None, cannot_link = None):
+    def __call__(self, X_target, X, labels, use_threshold=True, weights={},
+                 must_link=None, cannot_link=None):
         """Assigns each sample to it's nearest neighbor.
 
         Parameters
@@ -175,15 +177,15 @@ class KNN(ClosestAssignment):
 
         # k must be <= n_targets
         self.k = np.maximum(self.k, X_target.shape[0])
-        #FIXME should we declare neighbors in __init__ ?
-        neighbors = NearestNeighbors(n_neighbors = self.k, metric=self.metric)
+        # FIXME should we declare neighbors in __init__ ?
+        neighbors = NearestNeighbors(n_neighbors=self.k, metric=self.metric)
 
         if self.normalize:
             X_target = l2_normalize(X_target)
             X = l2_normalize(X)
 
         neighbors.fit(X_target)
-        kdistance, kneighbors = neighbors.kneighbors(X, self.k, return_distance = True)
+        kdistance, kneighbors = neighbors.kneighbors(X, self.k, return_distance=True)
         for i, (distance, indices) in enumerate(zip(kdistance, kneighbors), start=0):
             if must_link is not None and must_link[i]:
                 # trust must_link blindly
@@ -194,7 +196,7 @@ class KNN(ClosestAssignment):
             scores = Counter(neighborhood)
             for label in scores:
                 # weigh  neighbors
-                scores[label]*=weights.get(label,1)
+                scores[label] *= weights.get(label, 1)
                 # constrain neighbors
                 if cannot_link is None:
                     continue
@@ -202,11 +204,11 @@ class KNN(ClosestAssignment):
                     scores[cl] = 0
             nearest_neighbor, score = scores.most_common(1)[0]
 
-            j = np.where(neighborhood==nearest_neighbor)[0]
+            j = np.where(neighborhood == nearest_neighbor)[0]
             nearest_distance = np.mean(distance[j])
             if nearest_distance > self.threshold and use_threshold:
                 # give a negative label to samples far from their neighbors
-                assignments.append(-i-1)
+                assignments.append(-i - 1)
             else:
                 assignments.append(nearest_neighbor)
 
