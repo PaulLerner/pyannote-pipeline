@@ -141,8 +141,7 @@ class KNN(ClosestAssignment):
         # FIXME : how to init k ??
         self.k = Integer(1, 100)
 
-    def __call__(self, X_target, X, labels, use_threshold=True, weights={},
-                 must_link=None, cannot_link=None):
+    def __call__(self, X_target, X, labels, use_threshold=True, weights={}):
         """Assigns each sample to it's nearest neighbor.
 
         Parameters
@@ -160,12 +159,6 @@ class KNN(ClosestAssignment):
         weights : `dict`
             {label : weight} dict used to weigh the labels before assignment
             Defaults to no weighing (i.e. {label: 1})
-        must_link : `list`, optional
-            (n_samples, ) used to constrain the assignment
-            Defaults to no constraints (i.e. None)
-        cannot_link : `list`, optional
-            (n_samples, ) used to constrain the assignment
-            Defaults to no constraints (i.e. None)
 
         Returns
         -------
@@ -187,21 +180,12 @@ class KNN(ClosestAssignment):
         neighbors.fit(X_target)
         kdistance, kneighbors = neighbors.kneighbors(X, self.k, return_distance=True)
         for i, (distance, indices) in enumerate(zip(kdistance, kneighbors), start=0):
-            if must_link is not None and must_link[i]:
-                # trust must_link blindly
-                assignments.append(must_link[i])
-                continue
             neighborhood = labels[indices]
             # count neighbors
             scores = Counter(neighborhood)
+            # weigh  neighbors
             for label in scores:
-                # weigh  neighbors
                 scores[label] *= weights.get(label, 1)
-                # constrain neighbors
-                if cannot_link is None:
-                    continue
-                for cl in cannot_link[i]:
-                    scores[cl] = 0
             nearest_neighbor, score = scores.most_common(1)[0]
 
             j = np.where(neighborhood == nearest_neighbor)[0]
