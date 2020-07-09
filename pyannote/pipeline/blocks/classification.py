@@ -169,7 +169,7 @@ class KNN(ClosestAssignment):
         assignments = []
 
         # k must be <= n_targets
-        self.k = np.maximum(self.k, X_target.shape[0])
+        self.k = np.minimum(self.k, X_target.shape[0])
         # FIXME should we declare neighbors in __init__ ?
         neighbors = NearestNeighbors(n_neighbors=self.k, metric=self.metric)
 
